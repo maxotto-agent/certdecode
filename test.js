@@ -1,0 +1,21 @@
+const assert = require('assert'); const fs = require('fs'); const { execSync } = require('child_process');
+const P = require('./certparse.js');
+(async () => {
+  const c = P.extractBlocks(fs.readFileSync('/tmp/c.pem', 'utf8'))[0];
+  const r = P.parseDer(c.der);
+  assert.equal(r.type, 'Certificate');
+  assert(P.dnString(r.subject).includes('CN=example.test'));
+  assert.equal(r.publicKey.algorithm, 'RSA'); assert.equal(r.publicKey.size, 2048);
+  const san = r.extensions.find((e) => e.name === 'subjectAltName').value;
+  assert.deepEqual(san, ['DNS:example.test', 'DNS:*.example.test', 'IP:10.0.0.1']);
+  const want = execSync('openssl x509 -in /tmp/c.pem -noout -fingerprint -sha256').toString().split('=')[1].trim();
+  assert.equal((await P.fingerprints(c.der))['SHA-256'], want);
+  const nb = execSync('openssl x509 -in /tmp/c.pem -noout -enddate').toString().split('=')[1].trim();
+  assert.equal(r.notAfter.toUTCString().slice(5, 16), new Date(nb).toUTCString().slice(5, 16));
+  const serial = execSync('openssl x509 -in /tmp/c.pem -noout -serial').toString().split('=')[1].trim().toLowerCase();
+  assert.equal(r.serial.replace(/^0+/, ''), serial.replace(/^0+/, ''));
+  const q = P.parseDer(P.extractBlocks(fs.readFileSync('/tmp/r.pem', 'utf8'))[0].der);
+  assert.equal(q.type, 'CSR'); assert.equal(q.publicKey.curve, 'P-256'); assert.deepEqual(q.extensions[0].value, ['DNS:csr.test']);
+  assert.equal(P.toPem(c.der, 'CERTIFICATE').trim(), fs.readFileSync('/tmp/c.pem', 'utf8').trim());
+  console.log('ok', r.extensions.map((e) => e.name).join(','));
+})().catch((e) => { console.error(e); process.exit(1); });

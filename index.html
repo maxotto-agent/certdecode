@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Certificate &amp; CSR decoder – private, runs in your browser</title>
+<meta name="description" content="Decode X.509 certificates and CSRs (PEM or DER) in your browser: subject, issuer, SANs, expiry, key size, fingerprints, PEM/DER conversion. Nothing is uploaded.">
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1b1f23}
+textarea{width:100%;height:11rem;font:13px monospace;box-sizing:border-box}
+table{border-collapse:collapse;width:100%;margin:.5rem 0 1.5rem}
+th{text-align:left;width:11rem;vertical-align:top;color:#555;font-weight:600}
+td,th{padding:.25rem .5rem;border-bottom:1px solid #e5e5e5;word-break:break-word}
+.warn{color:#b00020;font-weight:600}.ok{color:#1a7f37;font-weight:600}
+code,.mono{font-family:monospace;font-size:13px}
+button{margin:.25rem .25rem .25rem 0}
+footer{margin-top:2rem;color:#555;font-size:14px}
+</style></head><body>
+<h1>Certificate &amp; CSR decoder</h1>
+<p>Paste a PEM certificate, certificate chain or CSR (or a bare base64/hex DER blob), or choose a file. Everything is decoded <b>locally in your browser</b>; nothing is uploaded or stored, and the page has no analytics.</p>
+<textarea id="in" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" spellcheck="false"></textarea>
+<p><input type="file" id="file"> <button id="go">Decode</button></p>
+<div id="out"></div>
+<footer>Made by an AI agent (Claude), MIT licensed, <a href="https://github.com/maxotto-agent/certdecode">source on GitHub</a>. Supports RSA, EC and Ed25519 keys; does not verify signatures or chains. Report problems via GitHub issues.</footer>
+<script src="certparse.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function row(k,v){return '<tr><th>'+esc(k)+'</th><td>'+v+'</td></tr>';}
+function dl(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();}
+async function render(blocks){
+  const out=$('out');out.innerHTML='';
+  if(!blocks.length){out.innerHTML='<p class="warn">No PEM/base64/hex data found.</p>';return;}
+  for(const [i,b] of blocks.entries()){
+    const sec=document.createElement('section');
+    let html='<h2>#'+(i+1)+' '+esc(b.label)+'</h2>';
+    try{
+      if(!/CERTIFICATE|CERTIFICATE REQUEST/.test(b.label)&&b.label!=='NEW CERTIFICATE REQUEST')throw new Error('Unsupported block type: '+b.label);
+      const r=CertParse.parseDer(b.der),fp=await CertParse.fingerprints(b.der);
+      let t='<table>'+row('Type',r.type)+row('Subject',esc(CertParse.dnString(r.subject)));
+      if(r.type==='Certificate'){
+        const now=new Date(),days=Math.floor((r.notAfter-now)/864e5);
+        const st=now>r.notAfter?'<span class="warn">EXPIRED '+(-days)+' days ago</span>':now<r.notBefore?'<span class="warn">not yet valid</span>':'<span class="ok">valid, expires in '+days+' days</span>';
+        t+=row('Issuer',esc(CertParse.dnString(r.issuer)))+row('Validity',esc(r.notBefore.toISOString())+' → '+esc(r.notAfter.toISOString())+'<br>'+st)+row('Serial','<span class="mono">'+esc(r.serial)+'</span>')+row('Version','v'+r.version);
+      }
+      const k=r.publicKey;
+      t+=row('Public key',esc(k.algorithm+(k.size?' '+k.size+' bit':'')+(k.curve?' '+k.curve:'')))+row('Signature',esc(r.signatureAlgorithm));
+      for(const e of r.extensions){const v=Array.isArray(e.value)?e.value.map(esc).join('<br>'):esc(e.value);t+=row(e.name+(e.critical?' (critical)':''),v);}
+      t+=row('SHA-256','<span class="mono">'+fp['SHA-256']+'</span>')+row('SHA-1','<span class="mono">'+fp['SHA-1']+'</span>')+'</table>';
+      html+=t;
+    }catch(e){html+='<p class="warn">Could not decode: '+esc(e.message)+'</p>';}
+    sec.innerHTML=html;
+    const p=document.createElement('button');p.textContent='Download PEM';p.onclick=()=>dl('block'+(i+1)+'.pem',CertParse.toPem(b.der,b.label),'text/plain');
+    const d=document.createElement('button');d.textContent='Download DER';d.onclick=()=>dl('block'+(i+1)+'.der',b.der,'application/octet-stream');
+    sec.append(p,d);out.append(sec);
+  }
+}
+$('go').onclick=()=>render(CertParse.extractBlocks($('in').value));
+$('in').oninput=()=>{if($('in').value.includes('-----END'))$('go').click();};
+$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;const buf=new Uint8Array(await f.arrayBuffer());
+  const txt=new TextDecoder('latin1').decode(buf);
+  if(/-----BEGIN /.test(txt)){$('in').value=txt;render(CertParse.extractBlocks(txt));}
+  else{$('in').value='(binary DER file: '+f.name+')';render([{label:'CERTIFICATE',der:buf}]);}};
+</script></body></html>
