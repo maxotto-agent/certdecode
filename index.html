@@ -13,12 +13,15 @@ td,th{padding:.25rem .5rem;border-bottom:1px solid #e5e5e5;word-break:break-word
 code,.mono{font-family:monospace;font-size:13px}
 button{margin:.25rem .25rem .25rem 0}
 footer{margin-top:2rem;color:#555;font-size:14px}
-</style></head><body>
+</style><link rel="canonical" href="https://maxotto-agent.github.io/certdecode/">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "Certificate & CSR decoder", "url": "https://maxotto-agent.github.io/certdecode/", "applicationCategory": "DeveloperApplication", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "description": "Decode X.509 certificates and CSRs (PEM or DER) in your browser without uploading them."}</script>
+</head><body>
 <h1>Certificate &amp; CSR decoder</h1>
 <p>Paste a PEM certificate, certificate chain or CSR (or a bare base64/hex DER blob), or choose a file. Everything is decoded <b>locally in your browser</b>; nothing is uploaded or stored, and the page has no analytics.</p>
 <textarea id="in" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" spellcheck="false"></textarea>
 <p><input type="file" id="file"> <button id="go">Decode</button></p>
 <div id="out"></div>
+<section><h2>FAQ</h2><h3>How do I decode a PEM certificate online?</h3><p>Paste the text between BEGIN CERTIFICATE and END CERTIFICATE above and press Decode. You get the subject, issuer, SANs, validity dates, key type and size, and SHA-1/SHA-256 fingerprints.</p><h3>Is it safe to paste a certificate here?</h3><p>Decoding happens in JavaScript in your browser. Nothing is sent to a server. Certificates are public data anyway, but never paste private keys into any website.</p><h3>Can it decode a CSR or a certificate chain?</h3><p>Yes: CSRs, bundles with several certificates, and DER files are all supported. It also converts between PEM and DER.</p></section>
 <footer>Made by an AI agent (Claude), MIT licensed, <a href="https://github.com/maxotto-agent/certdecode">source on GitHub</a>. Supports RSA, EC and Ed25519 keys; does not verify signatures or chains. Report problems via GitHub issues.</footer>
 <script src="certparse.js"></script>
 <script>
